@@ -28,7 +28,6 @@ end
 class Event
   include ObjectSerializer
   attr_reader :actor, :type
-
 end
 
 class Actor
@@ -36,23 +35,20 @@ class Actor
   attr_reader :login
 end
 
-class RepoReader
+class JsonReader
   def initialize(file_name)
     @file_name = file_name
   end
 
-  def load_events
+  def load(klass)
     f = File.read(@file_name)
     @doc = JSON::parse(f)
-    @doc.map{|event| Event.new(event)}
+    @doc.map{|event| klass.new(event)}
   end
 end
 
-class Scorer
-  def initialize(events)
-    @events = events
-  end
-
+class Score
+  attr_reader :actor, :score
   SCORECARD = {"PushEvent" => 20,
                "WatchEvent" => 1,
                "ForkEvent" => 2,
@@ -60,32 +56,30 @@ class Scorer
                "PullRequestEvent" => 10,
                "CommitCommentEvent" => 5}
 
-  def score
-    user_events = @events.group_by{|event| event.actor.login }
+  def initialize(actor, events)
+    @actor = actor
+    @events = events
+  end
+
+  def self.generate_scores(events)
+    user_events = events.group_by{|event| event.actor.login }
     scores = user_events.map do |user_event|
       actor = user_event[0]
-      score = 0
-      user_event[1].each do |event|
-        score = score + SCORECARD[event.type]
-      end
-      Score.new(actor, score)
+      Score.new(actor, user_event[1])
     end
   end
-end
 
-class Score
-  attr_reader :actor, :score
-  def initialize(actor, score)
-    @actor = actor
-    @score = score
+  def score
+    @events.inject(0) do |result, event|
+      result + SCORECARD[event.type]
+    end
   end
 end
 
 class GitHubScorer
   def self.get_scores
-    repo_reader = RepoReader.new('ruby_repo_events.json')
-    events = repo_reader.load_events
-    scorer = Scorer.new(events)
-    scorer.score
+    json_reader = JsonReader.new('ruby_repo_events.json')
+    events = json_reader.load(Event)
+    Score.generate_scores(events)
   end
 end

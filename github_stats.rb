@@ -1,30 +1,40 @@
 require 'rubygems'
 require 'json'
 require 'pry'
+require 'active_support/inflector'
 
-class Event
-  attr_reader :user, :type
-  def initialize(json)
-    @created_at = json["created_at"]
-    @type = json["type"]
-    @user = User.find_or_create(json["actor"])
+module ObjectSerializer
+  def deserialize(json)
+    json.each do |key, value|
+      if self.respond_to?(key)
+        if value.kind_of?(Hash)
+          klass_name = key.to_s.classify.to_sym
+          if Object.const_defined?(klass_name)
+            klass = Object.const_get(klass_name)
+            self.instance_variable_set("@#{key}", klass.new(value))
+          end
+        else
+          self.instance_variable_set("@#{key}", value)
+        end
+      end
+    end
   end
 end
 
-class User
+class Event
+  include ObjectSerializer
+  attr_reader :actor, :type
+
+  def initialize(json)
+    deserialize(json)
+  end
+end
+
+class Actor
+  include ObjectSerializer
   attr_reader :login
   def initialize(json)
-    @login = json["login"]
-  end
-
-  def self.find_or_create(json)
-    @users ||= []
-    user = @users.detect{|user| user.login == json["login"]}
-    if user.nil?
-      user = User.new(json)
-      @users << user
-    end
-    user
+    deserialize(json)
   end
 end
 
@@ -53,22 +63,22 @@ class Scorer
                "CommitCommentEvent" => 5}
 
   def score
-    user_events = @events.group_by{|event| event.user }
+    user_events = @events.group_by{|event| event.actor.login }
     scores = user_events.map do |user_event|
-      user = user_event[0]
+      actor = user_event[0]
       score = 0
       user_event[1].each do |event|
         score = score + SCORECARD[event.type]
       end
-      Score.new(user, score)
+      Score.new(actor, score)
     end
   end
 end
 
 class Score
-  attr_reader :user, :score
-  def initialize(user, score)
-    @user = user
+  attr_reader :actor, :score
+  def initialize(actor, score)
+    @actor = actor
     @score = score
   end
 end

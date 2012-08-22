@@ -19,23 +19,21 @@ module ObjectSerializer
       end
     end
   end
+
+  def initialize(json)
+    deserialize(json)
+  end
 end
 
 class Event
   include ObjectSerializer
   attr_reader :actor, :type
 
-  def initialize(json)
-    deserialize(json)
-  end
 end
 
 class Actor
   include ObjectSerializer
   attr_reader :login
-  def initialize(json)
-    deserialize(json)
-  end
 end
 
 class RepoReader

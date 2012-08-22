@@ -72,3 +72,12 @@ class Score
     @score = score
   end
 end
+
+class GitHubScorer
+  def self.get_scores
+    repo_reader = RepoReader.new('ruby_repo_events.json')
+    events = repo_reader.load_events
+    scorer = Scorer.new(events)
+    scorer.score
+  end
+end
